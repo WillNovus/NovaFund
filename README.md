@@ -12,8 +12,6 @@
 
 **A decentralized micro-investment and crowdfunding platform on Stellar where contributors pool funds into projects, and smart contracts automatically manage investments, returns, and payouts.**
 
-[Demo](https://demo.novafund.io) • [Documentation](https://docs.novafund.io) • [Discord](https://discord.gg/novafund) • [Twitter](https://twitter.com/novafund)
-
 </div>
 
 ---
