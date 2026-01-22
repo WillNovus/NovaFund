@@ -1,8 +1,362 @@
 #![no_std]
 
-// TODO: Implement project launch contract
-// This contract will handle:
-// - Project creation with funding goals
-// - Contribution tracking
-// - Funding finalization
-// - Project status management
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, Address, Bytes, Env, Vec,
+};
+
+use shared::{
+    errors::Error,
+    events::{CONTRIBUTION_MADE, PROJECT_CREATED},
+    constants::{MIN_FUNDING_GOAL, MIN_PROJECT_DURATION, MAX_PROJECT_DURATION, MIN_CONTRIBUTION},
+    utils::verify_future_timestamp,
+};
+
+/// Project status enumeration
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum ProjectStatus {
+    Active = 0,
+    Completed = 1,
+    Failed = 2,
+    Cancelled = 3,
+}
+
+/// Project structure
+#[contracttype]
+#[derive(Clone)]
+pub struct Project {
+    pub creator: Address,
+    pub funding_goal: i128,
+    pub deadline: u64,
+    pub token: Address,
+    pub status: ProjectStatus,
+    pub metadata_hash: Bytes,
+    pub total_raised: i128,
+    pub created_at: u64,
+}
+
+/// Contract state
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum DataKey {
+    Admin = 0,
+    NextProjectId = 1,
+    Project = 2,
+}
+
+/// Contribution tracking
+#[contracttype]
+pub struct Contribution {
+    pub contributor: Address,
+    pub amount: i128,
+    pub timestamp: u64,
+}
+
+#[contract]
+pub struct ProjectLaunch;
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum ProjectLaunchError {
+    InvalidFundingGoal = 1000,
+    InvalidDeadline = 1001,
+    ProjectNotFound = 1002,
+    ContributionTooLow = 1003,
+    ProjectNotActive = 1004,
+    DeadlinePassed = 1005,
+}
+
+#[contractimpl]
+impl ProjectLaunch {
+    /// Initialize the contract with an admin address
+    pub fn initialize(env: Env, admin: Address) -> Result<(), Error> {
+        if env.storage().instance().has(&DataKey::Admin) {
+            return Err(Error::AlreadyInitialized);
+        }
+
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::NextProjectId, &0u64);
+
+        Ok(())
+    }
+
+    /// Create a new funding project
+    pub fn create_project(
+        env: Env,
+        creator: Address,
+        funding_goal: i128,
+        deadline: u64,
+        token: Address,
+        metadata_hash: Bytes,
+    ) -> Result<u64, ProjectLaunchError> {
+        // Validate funding goal
+        if funding_goal < MIN_FUNDING_GOAL {
+            return Err(ProjectLaunchError::InvalidFundingGoal);
+        }
+
+        // Validate deadline
+        let current_time = env.ledger().timestamp();
+        let duration = deadline.saturating_sub(current_time);
+        
+        if duration < MIN_PROJECT_DURATION || duration > MAX_PROJECT_DURATION {
+            return Err(ProjectLaunchError::InvalidDeadline);
+        }
+
+        if !verify_future_timestamp(&env, deadline) {
+            return Err(ProjectLaunchError::InvalidDeadline);
+        }
+
+        // Get next project ID
+        let project_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::NextProjectId)
+            .unwrap_or(0);
+
+        let next_id = project_id.checked_add(1).unwrap();
+        env.storage()
+            .instance()
+            .set(&DataKey::NextProjectId, &next_id);
+
+        // Create project
+        let project = Project {
+            creator: creator.clone(),
+            funding_goal,
+            deadline,
+            token: token.clone(),
+            status: ProjectStatus::Active,
+            metadata_hash,
+            total_raised: 0,
+            created_at: current_time,
+        };
+
+        // Store project
+        env.storage()
+            .instance()
+            .set(&(DataKey::Project, project_id), &project);
+
+        // Emit event
+        env.events().publish(
+            (PROJECT_CREATED,),
+            (project_id, creator, funding_goal, deadline, token),
+        );
+
+        Ok(project_id)
+    }
+
+    /// Contribute to a project
+    pub fn contribute(
+        env: Env,
+        project_id: u64,
+        contributor: Address,
+        amount: i128,
+    ) -> Result<(), ProjectLaunchError> {
+        // Validate contribution amount
+        if amount < MIN_CONTRIBUTION {
+            return Err(ProjectLaunchError::ContributionTooLow);
+        }
+
+        // Get project
+        let mut project: Project = env
+            .storage()
+            .instance()
+            .get(&(DataKey::Project, project_id))
+            .ok_or(ProjectLaunchError::ProjectNotFound)?;
+
+        // Validate project status and deadline
+        if project.status != ProjectStatus::Active {
+            return Err(ProjectLaunchError::ProjectNotActive);
+        }
+
+        let current_time = env.ledger().timestamp();
+        if current_time >= project.deadline {
+            return Err(ProjectLaunchError::DeadlinePassed);
+        }
+
+        // Update project totals
+        project.total_raised += amount;
+        env.storage()
+            .instance()
+            .set(&(DataKey::Project, project_id), &project);
+
+        // Store contribution record
+        let contribution = Contribution {
+            contributor: contributor.clone(),
+            amount,
+            timestamp: current_time,
+        };
+        
+        let contribution_key = (DataKey::Project, project_id);
+        let mut contributions: Vec<Contribution> = env
+            .storage()
+            .persistent()
+            .get(&contribution_key)
+            .unwrap_or_else(|| Vec::new(&env));
+        
+        contributions.push_back(contribution);
+        env.storage()
+            .persistent()
+            .set(&contribution_key, &contributions);
+
+        // Emit event
+        env.events().publish(
+            (CONTRIBUTION_MADE,),
+            (project_id, contributor, amount, project.total_raised),
+        );
+
+        Ok(())
+    }
+
+    /// Get project details
+    pub fn get_project(env: Env, project_id: u64) -> Result<Project, ProjectLaunchError> {
+        env.storage()
+            .instance()
+            .get(&(DataKey::Project, project_id))
+            .ok_or(ProjectLaunchError::ProjectNotFound)
+    }
+
+    /// Get project contributions
+    pub fn get_contributions(env: Env, project_id: u64) -> Result<Vec<Contribution>, ProjectLaunchError> {
+        let contribution_key = (DataKey::Project, project_id);
+        env.storage()
+            .persistent()
+            .get(&contribution_key)
+            .ok_or(ProjectLaunchError::ProjectNotFound)
+    }
+
+    /// Get next project ID (for testing purposes)
+    pub fn get_next_project_id(env: Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&DataKey::NextProjectId)
+            .unwrap_or(0)
+    }
+
+    /// Check if contract is initialized
+    pub fn is_initialized(env: Env) -> bool {
+        env.storage().instance().has(&DataKey::Admin)
+    }
+
+    /// Get contract admin
+    pub fn get_admin(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::Admin)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::{testutils::{Address as TestAddress, Ledger}, Address, Bytes};
+
+    #[test]
+    fn test_initialize() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+
+        // Test successful initialization
+        assert!(!client.is_initialized());
+        client.initialize(&admin);
+        assert!(client.is_initialized());
+        assert_eq!(client.get_admin(), Some(admin));
+    }
+
+    #[test]
+    fn test_create_project() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let token = Address::generate(&env);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
+
+        client.initialize(&admin);
+
+        // Set up time
+        env.ledger().set_timestamp(1000000);
+
+        // Test successful project creation
+        let deadline = 1000000 + MIN_PROJECT_DURATION + 86400; // 2 days from now
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+        );
+
+        assert_eq!(project_id, 0);
+        assert_eq!(client.get_next_project_id(), 1);
+
+        // Test invalid funding goal
+        let result = client.try_create_project(
+            &creator,
+            &(MIN_FUNDING_GOAL - 1),
+            &deadline,
+            &token,
+            &metadata_hash,
+        );
+        assert!(result.is_err());
+
+        // Test invalid deadline (too soon)
+        let too_soon_deadline = 1000000 + MIN_PROJECT_DURATION - 1;
+        let result = client.try_create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &too_soon_deadline,
+            &token,
+            &metadata_hash,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_contribute() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, ProjectLaunch);
+        let client = ProjectLaunchClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let creator = Address::generate(&env);
+        let contributor = Address::generate(&env);
+        let token = Address::generate(&env);
+        let metadata_hash = Bytes::from_slice(&env, b"QmHash123");
+
+        client.initialize(&admin);
+
+        // Create project
+        env.ledger().set_timestamp(1000000);
+        let deadline = 1000000 + MIN_PROJECT_DURATION + 86400;
+        let project_id = client.create_project(
+            &creator,
+            &MIN_FUNDING_GOAL,
+            &deadline,
+            &token,
+            &metadata_hash,
+        );
+
+        // Test successful contribution
+        client.contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+
+        // Test contribution too low
+        let result = client.try_contribute(&project_id, &contributor, &(MIN_CONTRIBUTION - 1));
+        assert!(result.is_err());
+
+        // Test contribution to non-existent project
+        let result = client.try_contribute(&999, &contributor, &MIN_CONTRIBUTION);
+        assert!(result.is_err());
+
+        // Test contribution after deadline
+        env.ledger().set_timestamp(deadline + 1);
+        let result = client.try_contribute(&project_id, &contributor, &MIN_CONTRIBUTION);
+        assert!(result.is_err());
+    }
+}

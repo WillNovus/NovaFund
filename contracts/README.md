@@ -109,16 +109,71 @@ soroban contract invoke \
 **Purpose**: Manage project creation, funding goals, and contribution tracking
 
 **Key Functions**:
-- `create_project()` - Create new funding campaign
-- `contribute()` - Add funds to project
-- `finalize_funding()` - Close funding round
-- `get_project_info()` - Retrieve project details
+- `initialize(admin)` - Initialize contract with admin address
+- `create_project(creator, funding_goal, deadline, token, metadata_hash)` - Create new funding campaign
+- `contribute(project_id, contributor, amount)` - Add funds to project
+- `get_project(project_id)` - Retrieve project details
+- `get_contributions(project_id)` - Get all contributions for a project
+
+**Usage Examples**:
+
+```bash
+# Initialize contract
+soroban contract invoke \
+  --id CONTRACT_ID \
+  --source deployer \
+  --network testnet \
+  -- initialize \
+  --admin GD5DJQD... \
+
+# Create a new project
+soroban contract invoke \
+  --id CONTRACT_ID \
+  --source creator \
+  --network testnet \
+  -- create_project \
+  --creator GD5DJQD... \
+  --funding_goal 10000000000 \
+  --deadline 1735689600 \
+  --token GBPP... \
+  --metadata_hash "QmXxx... "
+
+# Contribute to a project
+soroban contract invoke \
+  --id CONTRACT_ID \
+  --source contributor \
+  --network testnet \
+  -- contribute \
+  --project_id 0 \
+  --contributor GD5DJQD... \
+  --amount 1000000000
+
+# Get project information
+soroban contract invoke \
+  --id CONTRACT_ID \
+  --network testnet \
+  -- get_project \
+  --project_id 0
+```
+
+**Parameters**:
+- `funding_goal`: Minimum 1,000 XLM (1,000_0000000 stroops)
+- `deadline`: Must be 1-180 days from creation
+- `amount`: Minimum 10 XLM per contribution
+- `metadata_hash`: IPFS/Arweave hash for project details
+
+**Expected Behavior**:
+- Projects start with `Active` status
+- Contributions only accepted before deadline
+- Events emitted for project creation and contributions
+- Contribution history tracked permanently
+- Project IDs increment sequentially from 0
 
 **State Management**:
-- Project metadata (IPFS hash)
-- Funding goal and deadline
-- Current funding amount
-- Contributor list and amounts
+- Project metadata (creator, goal, deadline, token, status)
+- IPFS/Arweave hash for off-chain project details
+- Current funding amount and contribution history
+- Project status (Active, Completed, Failed, Cancelled)
 
 ### 2. Escrow Contract
 
