@@ -283,10 +283,28 @@ soroban contract invoke \
 The `shared/` directory contains common utilities:
 
 - **types.rs** - Shared data structures
+  - `FeeConfig` - Platform fee configuration
+  - `TokenInfo` - Token Information
+  - `UserProfile` - User Profile
+  - `EscrowInfo` - Escrow Information
+  - `MilestoneStatus` - Milestone Status
+  - `Milestone` - Milestone
+  
 - **errors.rs** - Common error types
+  - `Error` - Centralized error variants (NotInitialized, Unauthorized, ProjectNotActive, etc.)
+  
 - **events.rs** - Event definitions
+  - `PROJECT_CREATED`, `PROJECT_FUNDED`, `CONTRIBUTION_MADE`, `REFUND_ISSUED`
+  - `PROFIT_DISTRIBUTED`, `DIVIDEND_CLAIMED`
+  - `PROPOSAL_CREATED`, `VOTE_CAST`, `PROPOSAL_EXECUTED`
+  - `REPUTATION_UPDATED`, `BADGE_EARNED`
+  
 - **utils.rs** - Helper functions
+  
 - **constants.rs** - Platform constants
+  - `DEFAULT_PLATFORM_FEE`, `MIN_FUNDING_GOAL`, `MAX_PROJECT_DURATION`
+  - `ESCROW_INITIALIZED`, `FUNDS_LOCKED`, `FUNDS_RELEASED`
+  - `MILESTONE_CREATED`, `MILESTONE_SUBMITTED`, `MILESTONE_APPROVED`, `MILESTONE_REJECTED`
 
 ## 🧪 Testing Strategy
 

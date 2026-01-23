@@ -57,17 +57,17 @@ pub struct Contribution {
 #[contract]
 pub struct ProjectLaunch;
 
-#[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum ProjectLaunchError {
-    InvalidFundingGoal = 1000,
-    InvalidDeadline = 1001,
-    ProjectNotFound = 1002,
-    ContributionTooLow = 1003,
-    ProjectNotActive = 1004,
-    DeadlinePassed = 1005,
-}
+// #[contracterror]
+// #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+// #[repr(u32)]
+// pub enum Error {
+//     InvalidFundingGoal = 1000,
+//     InvalidDeadline = 1001,
+//     ProjectNotFound = 1002,
+//     ContributionTooLow = 1003,
+//     ProjectNotActive = 1004,
+//     DeadlinePassed = 1005,
+// }
 
 #[contractimpl]
 impl ProjectLaunch {
@@ -92,10 +92,10 @@ impl ProjectLaunch {
         deadline: u64,
         token: Address,
         metadata_hash: Bytes,
-    ) -> Result<u64, ProjectLaunchError> {
+    ) -> Result<u64, Error> {
         // Validate funding goal
         if funding_goal < MIN_FUNDING_GOAL {
-            return Err(ProjectLaunchError::InvalidFundingGoal);
+            return Err(Error::InvalidFundingGoal);
         }
 
         // Validate deadline
@@ -103,11 +103,11 @@ impl ProjectLaunch {
         let duration = deadline.saturating_sub(current_time);
         
         if duration < MIN_PROJECT_DURATION || duration > MAX_PROJECT_DURATION {
-            return Err(ProjectLaunchError::InvalidDeadline);
+            return Err(Error::InvalidDeadline);
         }
 
         if !verify_future_timestamp(&env, deadline) {
-            return Err(ProjectLaunchError::InvalidDeadline);
+            return Err(Error::InvalidDeadline);
         }
 
         // Get next project ID
@@ -154,10 +154,10 @@ impl ProjectLaunch {
         project_id: u64,
         contributor: Address,
         amount: i128,
-    ) -> Result<(), ProjectLaunchError> {
+    ) -> Result<(), Error> {
         // Validate contribution amount
         if amount < MIN_CONTRIBUTION {
-            return Err(ProjectLaunchError::ContributionTooLow);
+            return Err(Error::ContributionTooLow);
         }
 
         // Get project
@@ -165,16 +165,16 @@ impl ProjectLaunch {
             .storage()
             .instance()
             .get(&(DataKey::Project, project_id))
-            .ok_or(ProjectLaunchError::ProjectNotFound)?;
+            .ok_or(Error::ProjectNotFound)?;
 
         // Validate project status and deadline
         if project.status != ProjectStatus::Active {
-            return Err(ProjectLaunchError::ProjectNotActive);
+            return Err(Error::ProjectNotActive);
         }
 
         let current_time = env.ledger().timestamp();
         if current_time >= project.deadline {
-            return Err(ProjectLaunchError::DeadlinePassed);
+            return Err(Error::DeadlinePassed);
         }
 
         // Update project totals
@@ -212,20 +212,20 @@ impl ProjectLaunch {
     }
 
     /// Get project details
-    pub fn get_project(env: Env, project_id: u64) -> Result<Project, ProjectLaunchError> {
+    pub fn get_project(env: Env, project_id: u64) -> Result<Project, Error> {
         env.storage()
             .instance()
             .get(&(DataKey::Project, project_id))
-            .ok_or(ProjectLaunchError::ProjectNotFound)
+            .ok_or(Error::ProjectNotFound)
     }
 
     /// Get project contributions
-    pub fn get_contributions(env: Env, project_id: u64) -> Result<Vec<Contribution>, ProjectLaunchError> {
+    pub fn get_contributions(env: Env, project_id: u64) -> Result<Vec<Contribution>, Error> {
         let contribution_key = (DataKey::Project, project_id);
         env.storage()
             .persistent()
             .get(&contribution_key)
-            .ok_or(ProjectLaunchError::ProjectNotFound)
+            .ok_or(Error::ProjectNotFound)
     }
 
     /// Get next project ID (for testing purposes)

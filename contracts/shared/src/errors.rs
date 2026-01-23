@@ -47,4 +47,11 @@ pub enum Error {
     InsufficientVotingPower = 601,
     ProposalAlreadyExecuted = 602,
     QuorumNotReached = 603,
+
+    InvalidFundingGoal = 1000,
+    InvalidDeadline = 1001,
+    ProjectNotFound = 1002,
+    ContributionTooLow = 1003,
+    // ProjectNotActive = 1004,
+    // DeadlinePassed = 1005,
 }
