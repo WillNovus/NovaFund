@@ -56,10 +56,10 @@ pub struct EscrowInfo {
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum MilestoneStatus {
-    Pending = 0,      // Created, awaiting submission
-    Submitted = 1,    // Submitted with proof, awaiting validator votes
-    Approved = 2,     // Approved by majority, funds released
-    Rejected = 3,     // Rejected by majority
+    Pending = 0,   // Created, awaiting submission
+    Submitted = 1, // Submitted with proof, awaiting validator votes
+    Approved = 2,  // Approved by majority, funds released
+    Rejected = 3,  // Rejected by majority
 }
 
 /// Milestone structure

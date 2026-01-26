@@ -81,9 +81,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client
-            .initialize(&1, &creator, &token, &validators)
-            ;
+        client.initialize(&1, &creator, &token, &validators);
 
         let deposit_amount: i128 = 1000;
         let result = client.try_deposit(&1, &deposit_amount);
@@ -100,9 +98,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client
-            .initialize(&1, &creator, &token, &validators)
-            ;
+        client.initialize(&1, &creator, &token, &validators);
 
         let result = client.try_deposit(&1, &0);
         assert!(result.is_err());
@@ -198,16 +194,13 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client
-            .initialize(&1, &creator, &token, &validators)
-            ;
+        client.initialize(&1, &creator, &token, &validators);
 
         client.deposit(&1, &1000);
 
         let description_hash = BytesN::from_array(&env, &[1u8; 32]);
         client.create_milestone(&1, &description_hash, &500);
 
-        
         let proof_hash = BytesN::from_array(&env, &[9u8; 32]);
         client.submit_milestone(&1, &0, &proof_hash);
 
@@ -224,9 +217,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client
-            .initialize(&1, &creator, &token, &validators)
-            ;
+        client.initialize(&1, &creator, &token, &validators);
 
         client.deposit(&1, &1000);
 
@@ -254,9 +245,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client
-            .initialize(&1, &creator, &token, &validators)
-            ;
+        client.initialize(&1, &creator, &token, &validators);
 
         let result = client.try_get_milestone(&1, &999);
         assert!(result.is_err() || result.is_err());
@@ -268,15 +257,13 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client
-            .initialize(&1, &creator, &token, &validators)
-            ;
+        client.initialize(&1, &creator, &token, &validators);
 
         client.deposit(&1, &1000);
 
         let description_hash = BytesN::from_array(&env, &[1u8; 32]);
         client.create_milestone(&1, &description_hash, &500);
-        
+
         // Check initial status is Pending
         let milestone = client.get_milestone(&1, &0);
         assert_eq!(milestone.status, MilestoneStatus::Pending);
@@ -299,9 +286,7 @@ mod tests {
         let client = create_client(&env);
         env.mock_all_auths();
 
-        client
-            .initialize(&1, &creator, &token, &validators)
-            ;
+        client.initialize(&1, &creator, &token, &validators);
 
         // First deposit
         client.deposit(&1, &500);
@@ -341,10 +326,10 @@ mod tests {
 
         // Create two different projects
         client.initialize(&1, &creator, &token, &validators);
-        
+
         // For second project, we'd need to modify the storage to allow different project IDs
         // This test verifies isolation via storage keys
-        
+
         let escrow1 = client.get_escrow(&1);
         assert_eq!(escrow1.project_id, 1);
     }

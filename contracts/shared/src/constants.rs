@@ -1,5 +1,5 @@
 /// Platform constants
-use soroban_sdk::{Symbol, symbol_short};
+use soroban_sdk::{symbol_short, Symbol};
 
 /// Default platform fee (2.5%)
 pub const DEFAULT_PLATFORM_FEE: u32 = 250;

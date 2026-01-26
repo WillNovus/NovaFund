@@ -40,10 +40,10 @@ mod tests {
     fn test_calculate_percentage() {
         // 25% of 1000
         assert_eq!(calculate_percentage(1000, 2500), 250);
-        
+
         // 100% of 1000
         assert_eq!(calculate_percentage(1000, 10000), 1000);
-        
+
         // 1% of 1000
         assert_eq!(calculate_percentage(1000, 100), 10);
     }

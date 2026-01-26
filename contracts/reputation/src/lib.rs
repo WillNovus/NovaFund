@@ -94,7 +94,11 @@ impl ReputationContract {
         Self::require_initialized(&env)?;
 
         // Check if user is already registered
-        if env.storage().persistent().has(&DataKey::Profile(user.clone())) {
+        if env
+            .storage()
+            .persistent()
+            .has(&DataKey::Profile(user.clone()))
+        {
             return Err(Error::UserAlreadyRegistered);
         }
 

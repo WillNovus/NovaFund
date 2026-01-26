@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, 
-    token, Address, Env, String, Vec, Symbol
+    contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, Env, String,
+    Symbol, Vec,
 };
 
 const MIN_SUBSCRIPTION: i128 = 100;
@@ -20,9 +20,9 @@ pub enum SubscriptionPeriod {
 pub enum DataKey {
     Admin,
     PoolCounter,
-    Pool(u64),                     // pool_id -> Pool
-    Subscription(u64, Address),    // (pool_id, subscriber) -> Subscription
-    SubscribersList(u64),          // pool_id -> Vec<Address>
+    Pool(u64),                  // pool_id -> Pool
+    Subscription(u64, Address), // (pool_id, subscriber) -> Subscription
+    SubscribersList(u64),       // pool_id -> Vec<Address>
 }
 
 #[contracttype]
@@ -72,7 +72,11 @@ impl SubscriptionPool {
     }
 
     pub fn create_pool(env: Env, name: String, token: Address) -> u64 {
-        let mut count: u64 = env.storage().instance().get(&DataKey::PoolCounter).unwrap_or(0);
+        let mut count: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::PoolCounter)
+            .unwrap_or(0);
         count += 1;
 
         let pool = Pool {
@@ -85,7 +89,8 @@ impl SubscriptionPool {
 
         env.storage().persistent().set(&DataKey::Pool(count), &pool);
         env.storage().instance().set(&DataKey::PoolCounter, &count);
-        env.events().publish((symbol_short!("pool_cre"), count), pool.name);
+        env.events()
+            .publish((symbol_short!("pool_cre"), count), pool.name);
         count
     }
 
@@ -102,7 +107,11 @@ impl SubscriptionPool {
         }
 
         let pool_key = DataKey::Pool(pool_id);
-        let mut pool: Pool = env.storage().persistent().get(&pool_key).ok_or(Error::PoolNotFound)?;
+        let mut pool: Pool = env
+            .storage()
+            .persistent()
+            .get(&pool_key)
+            .ok_or(Error::PoolNotFound)?;
 
         let sub_key = DataKey::Subscription(pool_id, subscriber.clone());
         if env.storage().persistent().has(&sub_key) {
@@ -114,30 +123,43 @@ impl SubscriptionPool {
             pool_id,
             amount,
             period,
-            last_payment: 0, 
+            last_payment: 0,
         };
 
         let list_key = DataKey::SubscribersList(pool_id);
-        let mut subscribers: Vec<Address> = env.storage().persistent().get(&list_key).unwrap_or(Vec::new(&env));
+        let mut subscribers: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&list_key)
+            .unwrap_or(Vec::new(&env));
         subscribers.push_back(subscriber.clone());
-        
+
         pool.subscriber_count += 1;
-        
+
         env.storage().persistent().set(&sub_key, &sub);
         env.storage().persistent().set(&list_key, &subscribers);
         env.storage().persistent().set(&pool_key, &pool);
 
-        env.events().publish((symbol_short!("subscr"), pool_id), subscriber);
+        env.events()
+            .publish((symbol_short!("subscr"), pool_id), subscriber);
         Ok(())
     }
 
     pub fn process_deposits(env: Env, pool_id: u64) -> Result<(), Error> {
         let pool_key = DataKey::Pool(pool_id);
-        let mut pool: Pool = env.storage().persistent().get(&pool_key).ok_or(Error::PoolNotFound)?;
+        let mut pool: Pool = env
+            .storage()
+            .persistent()
+            .get(&pool_key)
+            .ok_or(Error::PoolNotFound)?;
         let token_client = token::Client::new(&env, &pool.token);
-        
+
         let list_key = DataKey::SubscribersList(pool_id);
-        let subscribers: Vec<Address> = env.storage().persistent().get(&list_key).unwrap_or(Vec::new(&env));
+        let subscribers: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&list_key)
+            .unwrap_or(Vec::new(&env));
         let current_time = env.ledger().timestamp();
 
         for subscriber_addr in subscribers.iter() {
@@ -145,16 +167,21 @@ impl SubscriptionPool {
             let mut sub: Subscription = env.storage().persistent().get(&sub_key).unwrap();
 
             let elapsed = current_time >= (sub.last_payment + (sub.period as u32 as u64));
-            
+
             if sub.last_payment == 0 || elapsed {
                 // Transfer from user to contract
-                token_client.transfer(&sub.subscriber, &env.current_contract_address(), &sub.amount);
-                
+                token_client.transfer(
+                    &sub.subscriber,
+                    &env.current_contract_address(),
+                    &sub.amount,
+                );
+
                 sub.last_payment = current_time;
                 pool.total_balance += sub.amount;
 
                 env.storage().persistent().set(&sub_key, &sub);
-                env.events().publish((symbol_short!("deposit"), pool_id), subscriber_addr);
+                env.events()
+                    .publish((symbol_short!("deposit"), pool_id), subscriber_addr);
             }
         }
 
@@ -162,11 +189,20 @@ impl SubscriptionPool {
         Ok(())
     }
 
-    pub fn withdraw(env: Env, pool_id: u64, subscriber: Address, amount: i128) -> Result<(), Error> {
+    pub fn withdraw(
+        env: Env,
+        pool_id: u64,
+        subscriber: Address,
+        amount: i128,
+    ) -> Result<(), Error> {
         subscriber.require_auth();
-        
+
         let pool_key = DataKey::Pool(pool_id);
-        let mut pool: Pool = env.storage().persistent().get(&pool_key).ok_or(Error::PoolNotFound)?;
+        let mut pool: Pool = env
+            .storage()
+            .persistent()
+            .get(&pool_key)
+            .ok_or(Error::PoolNotFound)?;
 
         if amount <= 0 || amount > pool.total_balance {
             return Err(Error::InsufficientBalance);
@@ -178,15 +214,23 @@ impl SubscriptionPool {
         pool.total_balance -= amount;
         env.storage().persistent().set(&pool_key, &pool);
 
-        env.events().publish((symbol_short!("withdraw"), pool_id), subscriber);
+        env.events()
+            .publish((symbol_short!("withdraw"), pool_id), subscriber);
         Ok(())
     }
 
     pub fn get_pool(env: Env, pool_id: u64) -> Result<Pool, Error> {
-        env.storage().persistent().get(&DataKey::Pool(pool_id)).ok_or(Error::PoolNotFound)
+        env.storage()
+            .persistent()
+            .get(&DataKey::Pool(pool_id))
+            .ok_or(Error::PoolNotFound)
     }
 
-    pub fn get_subscription(env: Env, pool_id: u64, subscriber: Address) -> Result<Subscription, Error> {
+    pub fn get_subscription(
+        env: Env,
+        pool_id: u64,
+        subscriber: Address,
+    ) -> Result<Subscription, Error> {
         env.storage()
             .persistent()
             .get(&DataKey::Subscription(pool_id, subscriber))
