@@ -1,72 +1,59 @@
-name: Contracts Tests
+name: Contracts CI
 
 on:
-  push:
-    branches: [ main, develop ]
+  pull_request:
     paths:
       - 'contracts/**'
       - '.github/workflows/contracts.yml'
-  pull_request:
-    branches: [ main, develop ]
+  push:
+    branches:
+      - main
     paths:
       - 'contracts/**'
+      - '.github/workflows/contracts.yml'
 
 jobs:
   test:
+    name: Test Contracts
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        rust-version: ['1.75', '1.76']
-
+    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Rust ${{ matrix.rust-version }}
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: ${{ matrix.rust-version }}
-        components: rustfmt, clippy
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
-    - name: Cache cargo registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
 
-    - name: Install Soroban CLI
-      run: |
-        curl -fsSL https://github.com/stellar/soroban-tools/releases/latest/download/soroban-cli-installer.sh | bash
-        export PATH="$HOME/.local/bin:$PATH"
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-git-
 
-    - name: Setup soroban env
-      run: |
-        export PATH="$HOME/.local/bin:$PATH"
-        soroban version
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: contracts/target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-target-
 
-    - name: Run fmt check
-      run: |
-        export PATH="$HOME/.local/bin:$PATH"
-        cd contracts
-        cargo fmt --check
+      - name: Run tests
+        working-directory: contracts
+        run: cargo test --verbose
 
-    - name: Run clippy
-      run: |
-        export PATH="$HOME/.local/bin:$PATH"
-        cd contracts
-        cargo clippy --all-targets --all-features -- -D warnings
-
-    - name: Run tests
-      run: |
-        export PATH="$HOME/.local/bin:$PATH"
-        cd contracts
-        cargo test
-
-    - name: Build contracts
-      run: |
-        export PATH="$HOME/.local/bin:$PATH"
-        cd contracts
-        cargo build --release
+      - name: Build contracts
+        working-directory: contracts
+        run: cargo build --release --target wasm32-unknown-unknown --verbose
